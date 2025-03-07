@@ -1,6 +1,8 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import json
 from datetime import datetime
+import os
 
 # Page config
 st.set_page_config(
@@ -33,21 +35,6 @@ st.markdown("""
         .element-container {
             margin: 0 !important;
         }
-        .canvas {
-            background-color: white;
-            border: 2px dashed #ccc;
-            position: relative;
-            margin: 20px;
-            min-height: 600px;
-        }
-        .ui-element {
-            position: absolute;
-            background-color: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 8px;
-            cursor: move;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -64,12 +51,6 @@ with st.sidebar:
     # Tool properties
     st.subheader("Properties")
     if selected_tool:
-        col1, col2 = st.columns(2)
-        with col1:
-            x_pos = st.number_input("X Position", 0, st.session_state.canvas_width, 100)
-        with col2:
-            y_pos = st.number_input("Y Position", 0, st.session_state.canvas_height, 100)
-            
         width = st.slider("Width", 50, 800, 200)
         height = st.slider("Height", 50, 600, 200)
         
@@ -78,21 +59,6 @@ with st.sidebar:
         
         if selected_tool == "Dropdown":
             options = st.text_area("Options (one per line)", "Option 1\nOption 2\nOption 3")
-        
-        # Add element button
-        if st.button("Add Element"):
-            new_element = {
-                "id": f"element-{len(st.session_state.elements)}",
-                "type": selected_tool,
-                "x": x_pos,
-                "y": y_pos,
-                "width": width,
-                "height": height,
-                "text": text if 'text' in locals() else "",
-                "options": options.split('\n') if 'options' in locals() else []
-            }
-            st.session_state.elements.append(new_element)
-            st.experimental_rerun()
 
     # Clear canvas button
     if st.button("Clear Canvas"):
@@ -117,34 +83,34 @@ with st.sidebar:
 # Main canvas area
 st.markdown("### Canvas")
 
-# Generate HTML for each element
-elements_html = ""
-for element in st.session_state.elements:
-    style = f"""
-        left: {element['x']}px;
-        top: {element['y']}px;
-        width: {element['width']}px;
-        height: {element['height']}px;
-    """
-    
-    content = ""
-    if element['type'] == 'Button':
-        content = f'<button style="width: 100%; height: 100%">{element["text"]}</button>'
-    elif element['type'] == 'Text Input':
-        content = f'<input type="text" placeholder="{element["text"]}" style="width: 100%">'
-    elif element['type'] == 'Dropdown':
-        options = ''.join([f'<option>{opt}</option>' for opt in element['options']])
-        content = f'<select style="width: 100%">{options}</select>'
-    else:
-        content = f'<div>{element["type"]}</div>'
-    
-    elements_html += f'<div class="ui-element" style="{style}">{content}</div>'
+# Get the directory of the current file
+current_dir = os.path.dirname(os.path.abspath(__file__))
+frontend_path = os.path.join(current_dir, "frontend")
 
-# Render canvas with elements
-canvas_html = f"""
-<div class="canvas" style="width: {st.session_state.canvas_width}px; height: {st.session_state.canvas_height}px">
-    {elements_html}
-</div>
-"""
+# Initialize the React component
+canvas_component = components.declare_component(
+    "canvas_component",
+    path=frontend_path
+)
 
-st.components.v1.html(canvas_html, height=st.session_state.canvas_height + 40) 
+# Call the React component
+canvas_result = canvas_component(
+    selectedTool=selected_tool,
+    toolProperties={
+        "width": width if 'width' in locals() else 200,
+        "height": height if 'height' in locals() else 200,
+        "text": text if 'text' in locals() else "",
+        "options": options.split('\n') if 'options' in locals() else []
+    }
+)
+
+# Handle the result from React
+if canvas_result:
+    if canvas_result['type'] == 'add':
+        st.session_state.elements.append(canvas_result['element'])
+    elif canvas_result['type'] == 'move':
+        # Update element position
+        for i, element in enumerate(st.session_state.elements):
+            if element['id'] == canvas_result['element']['id']:
+                st.session_state.elements[i] = canvas_result['element']
+                break 

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>UI Designer Canvas</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/react-draggable@4.4.5/build/web/react-draggable.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        .canvas {
+            width: 100%;
+            height: calc(100vh - 100px);
+            border: 2px dashed #ccc;
+            position: relative;
+            background-color: #f5f5f5;
+        }
+        .ui-element {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const Canvas = ({ selectedTool, toolProperties }) => {
+            const [elements, setElements] = React.useState([]);
+            const [selectedElement, setSelectedElement] = React.useState(null);
+
+            const handleCanvasClick = (e) => {
+                if (!selectedTool) return;
+
+                const rect = e.target.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const newElement = {
+                    id: `element-${Date.now()}`,
+                    type: selectedTool,
+                    x,
+                    y,
+                    width: toolProperties.width,
+                    height: toolProperties.height,
+                    text: toolProperties.text,
+                    options: toolProperties.options,
+                };
+
+                setElements([...elements, newElement]);
+                
+                // Send data back to Streamlit
+                window.Streamlit.setComponentValue({
+                    type: 'add',
+                    element: newElement
+                });
+            };
+
+            const handleDrag = (id, e, data) => {
+                const updatedElements = elements.map((el) =>
+                    el.id === id ? { ...el, x: data.x, y: data.y } : el
+                );
+                setElements(updatedElements);
+                
+                // Send data back to Streamlit
+                window.Streamlit.setComponentValue({
+                    type: 'move',
+                    element: updatedElements.find(el => el.id === id)
+                });
+            };
+
+            const renderElement = (element) => {
+                const style = {
+                    width: element.width,
+                    height: element.height,
+                    border: '1px solid #ccc',
+                    backgroundColor: selectedElement === element.id ? '#e3f2fd' : '#fff',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    cursor: 'move',
+                };
+
+                const content = () => {
+                    switch (element.type) {
+                        case 'Button':
+                            return <button style={{ width: '100%', height: '100%' }}>{element.text}</button>;
+                        case 'Text Input':
+                            return <input type="text" placeholder={element.text} style={{ width: '100%' }} />;
+                        case 'Dropdown':
+                            return (
+                                <select style={{ width: '100%' }}>
+                                    {element.options?.map((opt, i) => (
+                                        <option key={i}>{opt}</option>
+                                    ))}
+                                </select>
+                            );
+                        default:
+                            return <div>{element.type}</div>;
+                    }
+                };
+
+                return (
+                    <Draggable
+                        key={element.id}
+                        position={{ x: element.x, y: element.y }}
+                        onDrag={(e, data) => handleDrag(element.id, e, data)}
+                        onMouseDown={() => setSelectedElement(element.id)}
+                    >
+                        <div style={style}>{content()}</div>
+                    </Draggable>
+                );
+            };
+
+            return (
+                <div
+                    className="canvas"
+                    onClick={handleCanvasClick}
+                >
+                    {elements.map(renderElement)}
+                </div>
+            );
+        };
+
+        // Initialize communication with Streamlit
+        const streamlitDoc = window.parent.document;
+
+        function onRender(event) {
+            if (event.data.type !== 'render') return;
+            const args = event.data.args;
+            
+            ReactDOM.render(
+                <Canvas
+                    selectedTool={args.selectedTool}
+                    toolProperties={args.toolProperties}
+                />,
+                document.getElementById('root')
+            );
+        }
+
+        window.addEventListener('message', onRender);
+    </script>
+</body>
+</html> 
