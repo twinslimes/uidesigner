@@ -1,7 +1,7 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import json
 from datetime import datetime
-from frontend import _component_func as canvas_component
 
 # Page config
 st.set_page_config(
@@ -34,6 +34,22 @@ st.markdown("""
         .element-container {
             margin: 0 !important;
         }
+        .canvas {
+            width: 100%;
+            height: 600px;
+            border: 2px dashed #ccc;
+            position: relative;
+            background-color: #f5f5f5;
+            overflow: hidden;
+        }
+        .ui-element {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -50,6 +66,12 @@ with st.sidebar:
     # Tool properties
     st.subheader("Properties")
     if selected_tool:
+        col1, col2 = st.columns(2)
+        with col1:
+            x_pos = st.number_input("X Position", 0, st.session_state.canvas_width, 100)
+        with col2:
+            y_pos = st.number_input("Y Position", 0, st.session_state.canvas_height, 100)
+            
         width = st.slider("Width", 50, 800, 200)
         height = st.slider("Height", 50, 600, 200)
         
@@ -58,6 +80,21 @@ with st.sidebar:
         
         if selected_tool == "Dropdown":
             options = st.text_area("Options (one per line)", "Option 1\nOption 2\nOption 3")
+        
+        # Add element button
+        if st.button("Add Element"):
+            new_element = {
+                "id": f"element-{len(st.session_state.elements)}",
+                "type": selected_tool,
+                "x": x_pos,
+                "y": y_pos,
+                "width": width,
+                "height": height,
+                "text": text if 'text' in locals() else "",
+                "options": options.split('\n') if 'options' in locals() else []
+            }
+            st.session_state.elements.append(new_element)
+            st.experimental_rerun()
 
     # Clear canvas button
     if st.button("Clear Canvas"):
@@ -82,24 +119,49 @@ with st.sidebar:
 # Main canvas area
 st.markdown("### Canvas")
 
-# Call the React component
-canvas_result = canvas_component(
-    selectedTool=selected_tool,
-    toolProperties={
-        "width": width if 'width' in locals() else 200,
-        "height": height if 'height' in locals() else 200,
-        "text": text if 'text' in locals() else "",
-        "options": options.split('\n') if 'options' in locals() else []
-    }
-)
+# Generate HTML for each element
+elements_html = ""
+for element in st.session_state.elements:
+    style = f"""
+        left: {element['x']}px;
+        top: {element['y']}px;
+        width: {element['width']}px;
+        height: {element['height']}px;
+    """
+    
+    content = ""
+    if element['type'] == 'Button':
+        content = f'<button style="width: 100%; height: 100%; cursor: pointer">{element["text"]}</button>'
+    elif element['type'] == 'Text Input':
+        content = f'<input type="text" placeholder="{element["text"]}" style="width: 100%">'
+    elif element['type'] == 'Dropdown':
+        options = ''.join([f'<option>{opt}</option>' for opt in element['options']])
+        content = f'<select style="width: 100%">{options}</select>'
+    elif element['type'] == 'Window':
+        content = f'''
+            <div style="width: 100%; height: 100%; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="padding: 8px; background: #f8f9fa; border-bottom: 1px solid #dee2e6; border-radius: 8px 8px 0 0;">
+                    Window Title
+                </div>
+                <div style="padding: 16px;">Window Content</div>
+            </div>
+        '''
+    elif element['type'] == 'Sidebar':
+        content = f'''
+            <div style="width: 100%; height: 100%; background: #f8f9fa; border-right: 1px solid #dee2e6; padding: 16px;">
+                Sidebar Content
+            </div>
+        '''
+    else:
+        content = f'<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">{element["type"]}</div>'
+    
+    elements_html += f'<div class="ui-element" style="{style}">{content}</div>'
 
-# Handle the result from React
-if canvas_result:
-    if canvas_result['type'] == 'add':
-        st.session_state.elements.append(canvas_result['element'])
-    elif canvas_result['type'] == 'move':
-        # Update element position
-        for i, element in enumerate(st.session_state.elements):
-            if element['id'] == canvas_result['element']['id']:
-                st.session_state.elements[i] = canvas_result['element']
-                break 
+# Render canvas with elements
+canvas_html = f"""
+<div class="canvas" style="width: {st.session_state.canvas_width}px; height: {st.session_state.canvas_height}px">
+    {elements_html}
+</div>
+"""
+
+components.html(canvas_html, height=st.session_state.canvas_height + 40) 
