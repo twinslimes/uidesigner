@@ -1,8 +1,7 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import json
 from datetime import datetime
-import os
+from frontend import _component_func as canvas_component
 
 # Page config
 st.set_page_config(
@@ -82,16 +81,6 @@ with st.sidebar:
 
 # Main canvas area
 st.markdown("### Canvas")
-
-# Get the directory of the current file
-current_dir = os.path.dirname(os.path.abspath(__file__))
-frontend_path = os.path.join(current_dir, "frontend")
-
-# Initialize the React component
-canvas_component = components.declare_component(
-    "canvas_component",
-    path=frontend_path
-)
 
 # Call the React component
 canvas_result = canvas_component(
