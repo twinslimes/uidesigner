@@ -581,10 +581,11 @@ threejs_code = '''
         }
         animate();
 
-        // Initialize elements
-        updateUIElements(st.session_state.elements);
+        // Initialize elements with the data from Python
+        const elements = ''' + json.dumps(st.session_state.elements) + ''';
+        updateUIElements(elements);
     </script>
 '''
 
 # Render the Three.js canvas
-components.html(threejs_code, height=650) 
+components.html(threejs_code, height=650, key=f"threejs_canvas_{len(st.session_state.elements)}") 
