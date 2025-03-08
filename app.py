@@ -546,7 +546,8 @@ threejs_code = '''
 
         function onMouseUp() {
             if (dragging || isResizing) {
-                updateUIElements(st.session_state.elements);
+                const elements = Array.from(window.threeJsState.elements.values()).map(obj => obj.userData);
+                updateUIElements(elements);
             }
             dragging = false;
             isResizing = false;
