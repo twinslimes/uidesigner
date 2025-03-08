@@ -211,9 +211,21 @@ threejs_code = '''
             padding: 0 !important;
             display: block !important;
         }
+        .element-label {
+            position: absolute;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+        }
     </style>
     <div id="canvas-container">
         <div id="scene-container"></div>
+        <div id="labels-container"></div>
     </div>
 
     <script>
@@ -224,7 +236,8 @@ threejs_code = '''
                 camera: null,
                 renderer: null,
                 elements: new Map(),
-                initialized: false
+                initialized: false,
+                labels: new Map()
             };
         }
 
@@ -300,11 +313,36 @@ threejs_code = '''
             });
         }
 
+        // Function to update label position
+        function updateLabelPosition(element) {
+            const label = window.threeJsState.labels.get(element.userData.id);
+            if (label) {
+                const container = document.getElementById('scene-container');
+                const rect = container.getBoundingClientRect();
+                const vector = new THREE.Vector3(element.position.x, element.position.y, element.position.z);
+                vector.project(window.threeJsState.camera);
+                
+                const x = (vector.x * 0.5 + 0.5) * rect.width;
+                const y = (-vector.y * 0.5 + 0.5) * rect.height;
+                
+                label.style.transform = `translate(${x}px, ${y}px)`;
+            }
+        }
+
         // Function to create or update UI elements
         function updateUIElements(elements) {
             const container = document.getElementById('scene-container');
             const containerRect = container.getBoundingClientRect();
             const currentIds = new Set(elements.map(e => e.id));
+            const labelsContainer = document.getElementById('labels-container');
+            
+            // Remove old labels that are no longer needed
+            for (let [id, label] of window.threeJsState.labels) {
+                if (!currentIds.has(id)) {
+                    labelsContainer.removeChild(label);
+                    window.threeJsState.labels.delete(id);
+                }
+            }
             
             // Store current positions and sizes before update
             const elementState = new Map();
@@ -326,10 +364,6 @@ threejs_code = '''
                         obj.userData.handles.forEach(handle => {
                             window.threeJsState.scene.remove(handle);
                         });
-                    }
-                    // Remove text label if it exists
-                    if (obj.userData.textLabel) {
-                        window.threeJsState.scene.remove(obj.userData.textLabel);
                     }
                     // Remove main element
                     window.threeJsState.scene.remove(obj);
@@ -353,11 +387,8 @@ threejs_code = '''
                     const color = hexToRgb(element.color || '#ffffff');
                     existingElement.material.color = new THREE.Color(color.r, color.g, color.b);
                     
-                    // Update text label position
-                    if (existingElement.userData.textLabel) {
-                        existingElement.userData.textLabel.position.copy(existingElement.position);
-                        existingElement.userData.textLabel.position.y += 10; // Position above the element
-                    }
+                    // Update label position
+                    updateLabelPosition(existingElement);
                 } else {
                     // Create new element
                     const geometry = new THREE.PlaneGeometry(element.width, element.height);
@@ -376,26 +407,13 @@ threejs_code = '''
                     window.threeJsState.scene.add(mesh);
                     window.threeJsState.elements.set(element.id, mesh);
 
-                    // Create text label for the element
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
-                    canvas.width = 256;
-                    canvas.height = 64;
-                    context.font = '24px Arial';
-                    context.fillStyle = 'white';
-                    context.textAlign = 'center';
-                    context.fillText(element.type, canvas.width/2, canvas.height/2);
-                    
-                    const texture = new THREE.CanvasTexture(canvas);
-                    const labelMaterial = new THREE.SpriteMaterial({ map: texture });
-                    const label = new THREE.Sprite(labelMaterial);
-                    label.scale.set(50, 20, 1);
-                    
-                    label.position.copy(mesh.position);
-                    label.position.z = 1; // Position in front of the element
-                    
-                    window.threeJsState.scene.add(label);
-                    mesh.userData.textLabel = label;
+                    // Create label for the element
+                    const label = document.createElement('div');
+                    label.className = 'element-label';
+                    label.textContent = element.type;
+                    labelsContainer.appendChild(label);
+                    window.threeJsState.labels.set(element.id, label);
+                    updateLabelPosition(mesh);
 
                     // Create handles for new element
                     createHandles(mesh);
@@ -623,6 +641,12 @@ threejs_code = '''
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
+            
+            // Update all label positions
+            for (let [id, element] of window.threeJsState.elements) {
+                updateLabelPosition(element);
+            }
+            
             window.threeJsState.renderer.render(window.threeJsState.scene, window.threeJsState.camera);
         }
         animate();
