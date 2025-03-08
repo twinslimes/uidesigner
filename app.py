@@ -154,7 +154,7 @@ with st.sidebar:
                 "options": options.split('\n') if 'options' in locals() else [],
                 "color": element_color if selected_scheme == "Custom" else COLOR_SCHEMES[selected_scheme][selected_tool]
             }
-            st.session_state.pending_elements.append(new_element)
+            st.session_state.elements.append(new_element)
 
     # Clear canvas button
     if st.button("Clear Canvas"):
@@ -231,7 +231,8 @@ threejs_code = '''
             camera: null,
             renderer: null,
             elements: new Map(),
-            initialized: false
+            initialized: false,
+            lastUpdate: null
         };
 
         // Helper function to convert hex color to THREE.Color
@@ -312,6 +313,18 @@ threejs_code = '''
             const containerRect = container.getBoundingClientRect();
             const currentIds = new Set(elements.map(e => e.id));
             
+            // Store current positions and sizes before update
+            const elementState = new Map();
+            for (let [id, obj] of window.threeJsState.elements) {
+                if (currentIds.has(id)) {
+                    elementState.set(id, {
+                        position: obj.position.clone(),
+                        width: obj.userData.width,
+                        height: obj.userData.height
+                    });
+                }
+            }
+            
             // Remove elements that no longer exist
             for (let [id, obj] of window.threeJsState.elements) {
                 if (!currentIds.has(id)) {
@@ -330,10 +343,16 @@ threejs_code = '''
             // Create or update elements
             elements.forEach(element => {
                 const existingElement = window.threeJsState.elements.get(element.id);
+                const savedState = elementState.get(element.id);
                 
                 if (existingElement) {
-                    // Update existing element if needed
+                    // Update existing element while preserving position and size
                     existingElement.userData = {...element, isMainElement: true};
+                    if (savedState) {
+                        existingElement.position.copy(savedState.position);
+                        existingElement.userData.width = savedState.width;
+                        existingElement.userData.height = savedState.height;
+                    }
                     const color = hexToRgb(element.color || '#ffffff');
                     existingElement.material.color = new THREE.Color(color.r, color.g, color.b);
                 } else {
