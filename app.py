@@ -231,69 +231,72 @@ threejs_code = '''
             } : null;
         }
 
-        // Initialize scene only if not already initialized
-        if (!window.threeJsState.initialized) {
-            const container = document.getElementById('scene-container');
-            const containerRect = container.getBoundingClientRect();
-            
-            // Initialize Three.js scene
-            window.threeJsState.scene = new THREE.Scene();
-            const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
-            window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
-            
-            // Set up camera
-            window.threeJsState.camera = new THREE.OrthographicCamera(
-                -containerRect.width / 2,
-                containerRect.width / 2,
-                containerRect.height / 2,
-                -containerRect.height / 2,
-                1,
-                1000
-            );
-            window.threeJsState.camera.position.z = 100;
-            
-            // Renderer setup
-            window.threeJsState.renderer = new THREE.WebGLRenderer({ 
-                antialias: true
+        // Function to update handle positions
+        function updateHandles(element) {
+            if (element.userData.handles) {
+                element.userData.handles.forEach(handle => {
+                    const xOffset = handle.userData.xDir * (element.userData.width/2);
+                    const yOffset = handle.userData.yDir * (element.userData.height/2);
+                    handle.position.set(
+                        element.position.x + xOffset,
+                        element.position.y + yOffset,
+                        1
+                    );
+                });
+            }
+        }
+
+        // Function to create handles for an element
+        function createHandles(element) {
+            const handleSize = 8;
+            const handles = [
+                { x: -1, y: -1, cursor: 'nw-resize', type: 'corner' },
+                { x: 1, y: -1, cursor: 'ne-resize', type: 'corner' },
+                { x: -1, y: 1, cursor: 'sw-resize', type: 'corner' },
+                { x: 1, y: 1, cursor: 'se-resize', type: 'corner' },
+                { x: 0, y: -1, cursor: 'n-resize', type: 'edge' },
+                { x: 0, y: 1, cursor: 's-resize', type: 'edge' },
+                { x: -1, y: 0, cursor: 'w-resize', type: 'edge' },
+                { x: 1, y: 0, cursor: 'e-resize', type: 'edge' }
+            ];
+
+            element.userData.handles = [];
+            handles.forEach(handleData => {
+                const handleGeometry = new THREE.PlaneGeometry(handleSize, handleSize);
+                const handleMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x4a90e2,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+                
+                handle.userData = {
+                    isHandle: true,
+                    parentElement: element,
+                    handleType: handleData.type,
+                    cursor: handleData.cursor,
+                    xDir: handleData.x,
+                    yDir: handleData.y
+                };
+
+                const xOffset = handleData.x * (element.userData.width/2);
+                const yOffset = handleData.y * (element.userData.height/2);
+                handle.position.set(
+                    element.position.x + xOffset,
+                    element.position.y + yOffset,
+                    1
+                );
+                
+                window.threeJsState.scene.add(handle);
+                element.userData.handles.push(handle);
             });
-            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
-            window.threeJsState.renderer.setPixelRatio(window.devicePixelRatio);
-            window.threeJsState.renderer.domElement.style.display = 'block'; // Ensure block display
-            window.threeJsState.renderer.domElement.style.margin = '0'; // Remove any margins
-            container.appendChild(window.threeJsState.renderer.domElement);
-
-            window.threeJsState.initialized = true;
         }
-
-        // Update background color
-        const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
-        window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
-
-        // Handle window resize
-        function onWindowResize() {
-            const container = document.getElementById('scene-container');
-            const containerRect = container.getBoundingClientRect();
-            
-            // Update camera
-            window.threeJsState.camera.left = -containerRect.width / 2;
-            window.threeJsState.camera.right = containerRect.width / 2;
-            window.threeJsState.camera.top = containerRect.height / 2;
-            window.threeJsState.camera.bottom = -containerRect.height / 2;
-            window.threeJsState.camera.updateProjectionMatrix();
-            
-            // Update renderer size to match container exactly
-            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
-        }
-        
-        window.addEventListener('resize', onWindowResize);
-
-        // Force initial resize to ensure proper dimensions
-        onWindowResize();
 
         // Function to create or update UI elements
         function updateUIElements(elements) {
-            const width = window.innerWidth;
-            const height = 600;
+            const container = document.getElementById('scene-container');
+            const containerRect = container.getBoundingClientRect();
             const currentIds = new Set(elements.map(e => e.id));
             
             // Remove elements that no longer exist
@@ -323,77 +326,68 @@ threejs_code = '''
                     });
                     const mesh = new THREE.Mesh(geometry, material);
                     
-                    mesh.position.x = element.x - width/2 + element.width/2;
-                    mesh.position.y = -element.y + height/2 - element.height/2;
+                    mesh.position.x = element.x - containerRect.width/2 + element.width/2;
+                    mesh.position.y = -element.y + containerRect.height/2 - element.height/2;
                     mesh.position.z = 0;
                     
-                    mesh.userData = element;
-                    mesh.userData.isMainElement = true;
+                    mesh.userData = {...element, isMainElement: true};
                     window.threeJsState.scene.add(mesh);
                     window.threeJsState.elements.set(element.id, mesh);
 
-                    // Add resize handles for new element
-                    const handleSize = 8;
-                    const handles = [
-                        { x: -1, y: -1, cursor: 'nw-resize', type: 'corner' },
-                        { x: 1, y: -1, cursor: 'ne-resize', type: 'corner' },
-                        { x: -1, y: 1, cursor: 'sw-resize', type: 'corner' },
-                        { x: 1, y: 1, cursor: 'se-resize', type: 'corner' },
-                        { x: 0, y: -1, cursor: 'n-resize', type: 'edge' },
-                        { x: 0, y: 1, cursor: 's-resize', type: 'edge' },
-                        { x: -1, y: 0, cursor: 'w-resize', type: 'edge' },
-                        { x: 1, y: 0, cursor: 'e-resize', type: 'edge' }
-                    ];
-
-                    mesh.userData.handles = [];
-                    handles.forEach(handleData => {
-                        const handleGeometry = new THREE.PlaneGeometry(handleSize, handleSize);
-                        const handleMaterial = new THREE.MeshBasicMaterial({
-                            color: 0x4a90e2,
-                            side: THREE.DoubleSide,
-                            transparent: true,
-                            opacity: 0.8
-                        });
-                        const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-                        
-                        handle.position.x = mesh.position.x + (handleData.x * element.width/2);
-                        handle.position.y = mesh.position.y + (handleData.y * element.height/2);
-                        handle.position.z = 1;
-                        
-                        handle.userData = {
-                            isHandle: true,
-                            parentElement: mesh,
-                            handleType: handleData.type,
-                            cursor: handleData.cursor,
-                            xDir: handleData.x,
-                            yDir: handleData.y
-                        };
-                        
-                        window.threeJsState.scene.add(handle);
-                        mesh.userData.handles.push(handle);
-                    });
+                    // Create handles for new element
+                    createHandles(mesh);
                 }
             });
         }
 
-        // Track resize state
+        // Initialize scene only if not already initialized
+        if (!window.threeJsState.initialized) {
+            const container = document.getElementById('scene-container');
+            const containerRect = container.getBoundingClientRect();
+            
+            // Initialize Three.js scene
+            window.threeJsState.scene = new THREE.Scene();
+            const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
+            window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
+            
+            // Set up camera
+            window.threeJsState.camera = new THREE.OrthographicCamera(
+                -containerRect.width / 2,
+                containerRect.width / 2,
+                containerRect.height / 2,
+                -containerRect.height / 2,
+                1,
+                1000
+            );
+            window.threeJsState.camera.position.z = 100;
+            
+            // Renderer setup
+            window.threeJsState.renderer = new THREE.WebGLRenderer({ 
+                antialias: true
+            });
+            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
+            window.threeJsState.renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(window.threeJsState.renderer.domElement);
+
+            window.threeJsState.initialized = true;
+        }
+
+        // Update background color
+        const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
+        window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
+
+        // Mouse state
+        let mouse = new THREE.Vector2();
+        let dragging = false;
         let isResizing = false;
+        let selectedObject = null;
         let resizeHandle = null;
+        let offset = new THREE.Vector2();
         let originalSize = { width: 0, height: 0 };
         let originalPosition = { x: 0, y: 0 };
         let startPoint = { x: 0, y: 0 };
-        
-        // Track mouse position and dragging state
-        let mouse = new THREE.Vector2();
-        let dragging = false;
-        let selectedObject = null;
-        let offset = new THREE.Vector2();
-        
+
         // Mouse event handlers
-        window.threeJsState.renderer.domElement.addEventListener('mousedown', onMouseDown);
-        window.threeJsState.renderer.domElement.addEventListener('mousemove', onMouseMove);
-        window.threeJsState.renderer.domElement.addEventListener('mouseup', onMouseUp);
-        
         function onMouseDown(event) {
             event.preventDefault();
             
@@ -421,7 +415,6 @@ threejs_code = '''
                     startPoint.x = intersects[0].point.x;
                     startPoint.y = intersects[0].point.y;
                     
-                    // Change cursor based on handle type
                     window.threeJsState.renderer.domElement.style.cursor = object.userData.cursor;
                 } else if (object.userData.isMainElement) {
                     dragging = true;
@@ -435,7 +428,7 @@ threejs_code = '''
                 }
             }
         }
-        
+
         function onMouseMove(event) {
             const rect = window.threeJsState.renderer.domElement.getBoundingClientRect();
             mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -455,7 +448,6 @@ threejs_code = '''
                 const parentElement = resizeHandle.userData.parentElement;
                 const { xDir, yDir } = resizeHandle.userData;
                 
-                // Calculate new size and position
                 let newWidth = originalSize.width;
                 let newHeight = originalSize.height;
                 let newX = originalPosition.x;
@@ -489,49 +481,21 @@ threejs_code = '''
                 // Update element userData
                 parentElement.userData.width = newWidth;
                 parentElement.userData.height = newHeight;
-                parentElement.userData.x = newX + containerRect.width/2 - newWidth/2;
-                parentElement.userData.y = -newY + containerRect.height/2 - newHeight/2;
                 
                 // Update handle positions
-                if (parentElement.userData.handles) {
-                    parentElement.userData.handles.forEach(handle => {
-                        const xOffset = handle.userData.xDir * (newWidth/2);
-                        const yOffset = handle.userData.yDir * (newHeight/2);
-                        handle.position.set(
-                            parentElement.position.x + xOffset,
-                            parentElement.position.y + yOffset,
-                            1
-                        );
-                    });
-                }
+                updateHandles(parentElement);
                 
             } else if (dragging && selectedObject) {
                 const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
                 const intersectPoint = new THREE.Vector3();
                 raycaster.ray.intersectPlane(planeZ, intersectPoint);
                 
-                // Update main element position
                 selectedObject.position.x = intersectPoint.x + offset.x;
                 selectedObject.position.y = intersectPoint.y + offset.y;
                 
-                // Update element userData
-                selectedObject.userData.x = selectedObject.position.x + containerRect.width/2 - selectedObject.userData.width/2;
-                selectedObject.userData.y = -selectedObject.position.y + containerRect.height/2 - selectedObject.userData.height/2;
-                
                 // Update handle positions
-                if (selectedObject.userData.handles) {
-                    selectedObject.userData.handles.forEach(handle => {
-                        const xOffset = handle.userData.xDir * (selectedObject.userData.width/2);
-                        const yOffset = handle.userData.yDir * (selectedObject.userData.height/2);
-                        handle.position.set(
-                            selectedObject.position.x + xOffset,
-                            selectedObject.position.y + yOffset,
-                            1
-                        );
-                    });
-                }
+                updateHandles(selectedObject);
             } else {
-                // Hover effect
                 const intersects = raycaster.intersectObjects(window.threeJsState.scene.children);
                 if (intersects.length > 0) {
                     const object = intersects[0].object;
@@ -547,7 +511,7 @@ threejs_code = '''
                 }
             }
         }
-        
+
         function onMouseUp() {
             dragging = false;
             isResizing = false;
@@ -555,19 +519,28 @@ threejs_code = '''
             resizeHandle = null;
             window.threeJsState.renderer.domElement.style.cursor = 'default';
         }
-        
-        // Helper function to update handle positions
-        function updateHandlePositions(element) {
-            if (element.userData.handles) {
-                element.userData.handles.forEach(handle => {
-                    handle.position.x = element.position.x + (handle.userData.xDir * element.userData.width/2);
-                    handle.position.y = element.position.y + (handle.userData.yDir * element.userData.height/2);
-                });
-            }
-        }
 
-        // Update elements without recreating the scene
-        updateUIElements(''' + json.dumps(st.session_state.elements) + ''');
+        // Add event listeners
+        window.threeJsState.renderer.domElement.addEventListener('mousedown', onMouseDown);
+        window.threeJsState.renderer.domElement.addEventListener('mousemove', onMouseMove);
+        window.threeJsState.renderer.domElement.addEventListener('mouseup', onMouseUp);
+
+        // Handle window resize
+        function onWindowResize() {
+            const container = document.getElementById('scene-container');
+            const containerRect = container.getBoundingClientRect();
+            
+            window.threeJsState.camera.left = -containerRect.width / 2;
+            window.threeJsState.camera.right = containerRect.width / 2;
+            window.threeJsState.camera.top = containerRect.height / 2;
+            window.threeJsState.camera.bottom = -containerRect.height / 2;
+            window.threeJsState.camera.updateProjectionMatrix();
+            
+            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
+        }
+        
+        window.addEventListener('resize', onWindowResize);
+        onWindowResize();
 
         // Animation loop
         function animate() {
@@ -575,6 +548,9 @@ threejs_code = '''
             window.threeJsState.renderer.render(window.threeJsState.scene, window.threeJsState.camera);
         }
         animate();
+
+        // Initialize elements
+        updateUIElements(''' + json.dumps(st.session_state.elements) + ''');
     </script>
 '''
 
