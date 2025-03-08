@@ -180,8 +180,35 @@ st.markdown("### Canvas")
 # Create the Three.js interactive canvas with state management
 threejs_code = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <div id="canvas-container" style="width: 100%; height: 600px; position: relative;">
-        <div id="scene-container" style="width: 100%; height: 100%; position: absolute; left: 0; top: 0;"></div>
+    <style>
+        #canvas-container {
+            width: 100%;
+            height: 600px;
+            position: relative;
+            margin: 0;
+            padding: 0;
+            display: block;
+        }
+        #scene-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+            margin: 0;
+            padding: 0;
+            display: block;
+        }
+        #scene-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: block !important;
+        }
+    </style>
+    <div id="canvas-container">
+        <div id="scene-container"></div>
     </div>
 
     <script>
@@ -231,6 +258,8 @@ threejs_code = '''
             });
             window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
             window.threeJsState.renderer.setPixelRatio(window.devicePixelRatio);
+            window.threeJsState.renderer.domElement.style.display = 'block'; // Ensure block display
+            window.threeJsState.renderer.domElement.style.margin = '0'; // Remove any margins
             container.appendChild(window.threeJsState.renderer.domElement);
 
             window.threeJsState.initialized = true;
