@@ -179,17 +179,6 @@ with st.sidebar:
 # Main canvas area
 st.markdown("### Canvas")
 
-# Handle component value updates
-def handle_threejs_update(value):
-    if value and 'elements' in value:
-        st.session_state.elements = value['elements']
-    elif value and 'action' in value:
-        if value['action'] == 'ready':
-            # If component is ready and we have pending elements, add them
-            if st.session_state.pending_elements:
-                st.session_state.elements.extend(st.session_state.pending_elements)
-                st.session_state.pending_elements = []
-
 # Create the Three.js interactive canvas with state management
 threejs_code = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -226,14 +215,15 @@ threejs_code = '''
 
     <script>
         // Global state management
-        window.threeJsState = window.threeJsState || {
-            scene: null,
-            camera: null,
-            renderer: null,
-            elements: new Map(),
-            initialized: false,
-            lastUpdate: null
-        };
+        if (!window.threeJsState) {
+            window.threeJsState = {
+                scene: null,
+                camera: null,
+                renderer: null,
+                elements: new Map(),
+                initialized: false
+            };
+        }
 
         // Helper function to convert hex color to THREE.Color
         function hexToRgb(hex) {
@@ -379,33 +369,6 @@ threejs_code = '''
             });
         }
 
-        // Function to update session state with current element positions
-        function updateSessionState() {
-            const container = document.getElementById('scene-container');
-            const containerRect = container.getBoundingClientRect();
-            const updatedElements = [];
-            
-            for (let [id, obj] of window.threeJsState.elements) {
-                const x = obj.position.x + containerRect.width/2 - obj.userData.width/2;
-                const y = -obj.position.y + containerRect.height/2 - obj.userData.height/2;
-                
-                updatedElements.push({
-                    ...obj.userData,
-                    x: x,
-                    y: y,
-                    width: obj.userData.width,
-                    height: obj.userData.height
-                });
-            }
-            
-            // Send updated state to Python
-            if (window.Streamlit) {
-                window.Streamlit.setComponentValue({
-                    elements: updatedElements
-                });
-            }
-        }
-
         // Initialize scene only if not already initialized
         if (!window.threeJsState.initialized) {
             const container = document.getElementById('scene-container');
@@ -436,13 +399,6 @@ threejs_code = '''
             container.appendChild(window.threeJsState.renderer.domElement);
 
             window.threeJsState.initialized = true;
-
-            // Signal that the component is ready
-            if (window.Streamlit) {
-                window.Streamlit.setComponentValue({
-                    action: 'ready'
-                });
-            }
         }
 
         // Update background color
@@ -587,7 +543,7 @@ threejs_code = '''
 
         function onMouseUp() {
             if (dragging || isResizing) {
-                updateSessionState();
+                updateUIElements(st.session_state.elements);
             }
             dragging = false;
             isResizing = false;
@@ -626,11 +582,9 @@ threejs_code = '''
         animate();
 
         // Initialize elements
-        updateUIElements(''' + json.dumps(st.session_state.elements) + ''');
+        updateUIElements(st.session_state.elements);
     </script>
 '''
 
-# Render the Three.js canvas with state handling
-threejs_state = components.html(threejs_code, height=650, key="threejs_canvas")
-if threejs_state:
-    handle_threejs_update(threejs_state) 
+# Render the Three.js canvas
+components.html(threejs_code, height=650) 
