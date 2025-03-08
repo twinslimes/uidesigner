@@ -16,6 +16,7 @@ if 'elements' not in st.session_state:
     st.session_state.canvas_height = 600
     st.session_state.canvas_width = 1000
     st.session_state.background_color = "#f5f5f5"  # Default background color
+    st.session_state.last_element_id = 0  # Add counter for element IDs
 
 # Predefined color schemes
 COLOR_SCHEMES = {
@@ -140,8 +141,9 @@ with st.sidebar:
         
         # Add element button
         if st.button("Add Element"):
+            st.session_state.last_element_id += 1
             new_element = {
-                "id": f"element-{len(st.session_state.elements)}",
+                "id": f"element-{st.session_state.last_element_id}",
                 "type": selected_tool,
                 "x": x_pos,
                 "y": y_pos,
@@ -152,7 +154,6 @@ with st.sidebar:
                 "color": element_color if selected_scheme == "Custom" else COLOR_SCHEMES[selected_scheme][selected_tool]
             }
             st.session_state.elements.append(new_element)
-            st.rerun()
 
     # Clear canvas button
     if st.button("Clear Canvas"):
