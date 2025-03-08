@@ -327,6 +327,10 @@ threejs_code = '''
                             window.threeJsState.scene.remove(handle);
                         });
                     }
+                    // Remove text label if it exists
+                    if (obj.userData.textLabel) {
+                        window.threeJsState.scene.remove(obj.userData.textLabel);
+                    }
                     // Remove main element
                     window.threeJsState.scene.remove(obj);
                     window.threeJsState.elements.delete(id);
@@ -348,6 +352,12 @@ threejs_code = '''
                     }
                     const color = hexToRgb(element.color || '#ffffff');
                     existingElement.material.color = new THREE.Color(color.r, color.g, color.b);
+                    
+                    // Update text label position
+                    if (existingElement.userData.textLabel) {
+                        existingElement.userData.textLabel.position.copy(existingElement.position);
+                        existingElement.userData.textLabel.position.y += 10; // Position above the element
+                    }
                 } else {
                     // Create new element
                     const geometry = new THREE.PlaneGeometry(element.width, element.height);
@@ -365,6 +375,27 @@ threejs_code = '''
                     mesh.userData = {...element, isMainElement: true};
                     window.threeJsState.scene.add(mesh);
                     window.threeJsState.elements.set(element.id, mesh);
+
+                    // Create text label for the element
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = 256;
+                    canvas.height = 64;
+                    context.font = '24px Arial';
+                    context.fillStyle = 'white';
+                    context.textAlign = 'center';
+                    context.fillText(element.type, canvas.width/2, canvas.height/2);
+                    
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+                    const label = new THREE.Sprite(labelMaterial);
+                    label.scale.set(50, 20, 1);
+                    
+                    label.position.copy(mesh.position);
+                    label.position.z = 1; // Position in front of the element
+                    
+                    window.threeJsState.scene.add(label);
+                    mesh.userData.textLabel = label;
 
                     // Create handles for new element
                     createHandles(mesh);
@@ -505,18 +536,20 @@ threejs_code = '''
                     }
                 }
                 
-                // Update element geometry and position
                 parentElement.geometry.dispose();
                 parentElement.geometry = new THREE.PlaneGeometry(newWidth, newHeight);
                 parentElement.position.set(newX, newY, 0);
-                
-                // Update element userData
                 parentElement.userData.width = newWidth;
                 parentElement.userData.height = newHeight;
                 
                 // Update handle positions
                 updateHandles(parentElement);
                 
+                // Update text label position if it exists
+                if (parentElement.userData.textLabel) {
+                    parentElement.userData.textLabel.position.copy(parentElement.position);
+                    parentElement.userData.textLabel.position.z = 1; // Keep in front
+                }
             } else if (dragging && selectedObject) {
                 const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
                 const intersectPoint = new THREE.Vector3();
@@ -527,10 +560,19 @@ threejs_code = '''
                 
                 // Update handle positions
                 updateHandles(selectedObject);
+                
+                // Update text label position if it exists
+                if (selectedObject.userData.textLabel) {
+                    selectedObject.userData.textLabel.position.copy(selectedObject.position);
+                    selectedObject.userData.textLabel.position.z = 1; // Keep in front
+                }
             } else {
+                // Handle hover effects
                 const intersects = raycaster.intersectObjects(window.threeJsState.scene.children);
+                
                 if (intersects.length > 0) {
                     const object = intersects[0].object;
+                    
                     if (object.userData.isHandle) {
                         window.threeJsState.renderer.domElement.style.cursor = object.userData.cursor;
                     } else if (object.userData.isMainElement) {
