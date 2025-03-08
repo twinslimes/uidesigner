@@ -181,6 +181,7 @@ st.markdown("### Canvas")
 threejs_code = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <div id="canvas-container" style="width: 100%; height: 600px; position: relative; border: 2px dashed #ccc; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: ''' + st.session_state.background_color + '''"></div>
         <div id="scene-container" style="width: 100%; height: 100%; position: absolute; left: 0; top: 0;"></div>
     </div>
 
@@ -223,11 +224,13 @@ threejs_code = '''
             );
             window.threeJsState.camera.position.z = 100;
             
-            // Renderer setup with proper size
+            // Renderer setup with transparency
             window.threeJsState.renderer = new THREE.WebGLRenderer({ 
                 antialias: true,
-                alpha: false // Disable alpha to ensure solid background
+                alpha: true,
+                preserveDrawingBuffer: true
             });
+            window.threeJsState.renderer.setClearColor(0x000000, 0); // Transparent background
             window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
             window.threeJsState.renderer.setPixelRatio(window.devicePixelRatio);
             container.appendChild(window.threeJsState.renderer.domElement);
