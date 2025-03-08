@@ -180,8 +180,7 @@ st.markdown("### Canvas")
 # Create the Three.js interactive canvas with state management
 threejs_code = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <div id="canvas-container" style="width: 100%; height: 600px; position: relative; border: 2px dashed #ccc; overflow: hidden;">
-        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: ''' + st.session_state.background_color + '''"></div>
+    <div id="canvas-container" style="width: 100%; height: 600px; position: relative;">
         <div id="scene-container" style="width: 100%; height: 100%; position: absolute; left: 0; top: 0;"></div>
     </div>
 
@@ -212,6 +211,8 @@ threejs_code = '''
             
             // Initialize Three.js scene
             window.threeJsState.scene = new THREE.Scene();
+            const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
+            window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
             
             // Set up camera
             window.threeJsState.camera = new THREE.OrthographicCamera(
@@ -224,13 +225,10 @@ threejs_code = '''
             );
             window.threeJsState.camera.position.z = 100;
             
-            // Renderer setup with transparency
+            // Renderer setup
             window.threeJsState.renderer = new THREE.WebGLRenderer({ 
-                antialias: true,
-                alpha: true,
-                preserveDrawingBuffer: true
+                antialias: true
             });
-            window.threeJsState.renderer.setClearColor(0x000000, 0); // Transparent background
             window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
             window.threeJsState.renderer.setPixelRatio(window.devicePixelRatio);
             container.appendChild(window.threeJsState.renderer.domElement);
@@ -241,7 +239,6 @@ threejs_code = '''
         // Update background color
         const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
         window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
-        window.threeJsState.renderer.setClearColor(new THREE.Color(bgColor.r, bgColor.g, bgColor.b), 1);
 
         // Handle window resize
         function onWindowResize() {
