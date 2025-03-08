@@ -168,9 +168,57 @@ threejs_code = '''
                 mesh.position.z = 0;
                 
                 mesh.userData = element;
+                mesh.userData.isMainElement = true;
                 scene.add(mesh);
+
+                // Add resize handles
+                const handleSize = 10;
+                const handles = [
+                    { x: -1, y: -1, cursor: 'nw-resize', type: 'corner' },  // Top-left
+                    { x: 1, y: -1, cursor: 'ne-resize', type: 'corner' },   // Top-right
+                    { x: -1, y: 1, cursor: 'sw-resize', type: 'corner' },   // Bottom-left
+                    { x: 1, y: 1, cursor: 'se-resize', type: 'corner' },    // Bottom-right
+                    { x: 0, y: -1, cursor: 'n-resize', type: 'edge' },      // Top
+                    { x: 0, y: 1, cursor: 's-resize', type: 'edge' },       // Bottom
+                    { x: -1, y: 0, cursor: 'w-resize', type: 'edge' },      // Left
+                    { x: 1, y: 0, cursor: 'e-resize', type: 'edge' }        // Right
+                ];
+
+                handles.forEach(handleData => {
+                    const handleGeometry = new THREE.PlaneGeometry(handleSize, handleSize);
+                    const handleMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x4a90e2,
+                        side: THREE.DoubleSide
+                    });
+                    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+                    
+                    // Position handle relative to main element
+                    handle.position.x = mesh.position.x + (handleData.x * element.width/2);
+                    handle.position.y = mesh.position.y + (handleData.y * element.height/2);
+                    handle.position.z = 1;  // Slightly in front
+                    
+                    handle.userData = {
+                        isHandle: true,
+                        parentElement: mesh,
+                        handleType: handleData.type,
+                        cursor: handleData.cursor,
+                        xDir: handleData.x,
+                        yDir: handleData.y
+                    };
+                    
+                    scene.add(handle);
+                    if (!mesh.userData.handles) mesh.userData.handles = [];
+                    mesh.userData.handles.push(handle);
+                });
             });
         }
+        
+        // Track resize state
+        let isResizing = false;
+        let resizeHandle = null;
+        let originalSize = { width: 0, height: 0 };
+        let originalPosition = { x: 0, y: 0 };
+        let startPoint = { x: 0, y: 0 };
         
         // Mouse event handlers
         renderer.domElement.addEventListener('mousedown', onMouseDown);
@@ -190,24 +238,95 @@ threejs_code = '''
             const intersects = raycaster.intersectObjects(scene.children);
             
             if (intersects.length > 0) {
-                dragging = true;
-                selectedObject = intersects[0].object;
+                const object = intersects[0].object;
                 
-                const intersectPoint = intersects[0].point;
-                offset.x = selectedObject.position.x - intersectPoint.x;
-                offset.y = selectedObject.position.y - intersectPoint.y;
+                if (object.userData.isHandle) {
+                    isResizing = true;
+                    resizeHandle = object;
+                    const parentElement = object.userData.parentElement;
+                    
+                    originalSize.width = parentElement.userData.width;
+                    originalSize.height = parentElement.userData.height;
+                    originalPosition.x = parentElement.position.x;
+                    originalPosition.y = parentElement.position.y;
+                    startPoint.x = intersects[0].point.x;
+                    startPoint.y = intersects[0].point.y;
+                    
+                    // Change cursor based on handle type
+                    renderer.domElement.style.cursor = object.userData.cursor;
+                } else if (object.userData.isMainElement) {
+                    dragging = true;
+                    selectedObject = object;
+                    
+                    const intersectPoint = intersects[0].point;
+                    offset.x = selectedObject.position.x - intersectPoint.x;
+                    offset.y = selectedObject.position.y - intersectPoint.y;
+                    
+                    renderer.domElement.style.cursor = 'move';
+                }
             }
         }
         
         function onMouseMove(event) {
-            if (dragging && selectedObject) {
-                const rect = renderer.domElement.getBoundingClientRect();
-                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            if (isResizing && resizeHandle) {
+                const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                const intersectPoint = new THREE.Vector3();
+                raycaster.ray.intersectPlane(planeZ, intersectPoint);
                 
-                const raycaster = new THREE.Raycaster();
-                raycaster.setFromCamera(mouse, camera);
+                const deltaX = intersectPoint.x - startPoint.x;
+                const deltaY = intersectPoint.y - startPoint.y;
                 
+                const parentElement = resizeHandle.userData.parentElement;
+                const { xDir, yDir } = resizeHandle.userData;
+                
+                // Calculate new size and position
+                let newWidth = originalSize.width;
+                let newHeight = originalSize.height;
+                let newX = originalPosition.x;
+                let newY = originalPosition.y;
+                
+                if (xDir !== 0) {
+                    const widthDelta = deltaX * xDir * 2;
+                    newWidth = Math.max(50, originalSize.width + widthDelta);
+                    if (xDir < 0) {
+                        newX = originalPosition.x + (originalSize.width - newWidth) / 2;
+                    } else {
+                        newX = originalPosition.x + (newWidth - originalSize.width) / 2;
+                    }
+                }
+                
+                if (yDir !== 0) {
+                    const heightDelta = deltaY * yDir * 2;
+                    newHeight = Math.max(50, originalSize.height + heightDelta);
+                    if (yDir < 0) {
+                        newY = originalPosition.y + (originalSize.height - newHeight) / 2;
+                    } else {
+                        newY = originalPosition.y + (newHeight - originalSize.height) / 2;
+                    }
+                }
+                
+                // Update element geometry
+                parentElement.geometry.dispose();
+                parentElement.geometry = new THREE.PlaneGeometry(newWidth, newHeight);
+                parentElement.position.set(newX, newY, 0);
+                
+                // Update userData
+                parentElement.userData.width = newWidth;
+                parentElement.userData.height = newHeight;
+                parentElement.userData.x = newX + width/2 - newWidth/2;
+                parentElement.userData.y = -newY + height/2 - newHeight/2;
+                
+                // Update handle positions
+                updateHandlePositions(parentElement);
+                
+            } else if (dragging && selectedObject) {
                 const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
                 const intersectPoint = new THREE.Vector3();
                 raycaster.ray.intersectPlane(planeZ, intersectPoint);
@@ -218,12 +337,42 @@ threejs_code = '''
                 // Update element position in userData
                 selectedObject.userData.x = selectedObject.position.x + width/2 - selectedObject.userData.width/2;
                 selectedObject.userData.y = -selectedObject.position.y + height/2 - selectedObject.userData.height/2;
+                
+                // Update handle positions
+                updateHandlePositions(selectedObject);
+            } else {
+                // Hover effect
+                const intersects = raycaster.intersectObjects(scene.children);
+                if (intersects.length > 0) {
+                    const object = intersects[0].object;
+                    if (object.userData.isHandle) {
+                        renderer.domElement.style.cursor = object.userData.cursor;
+                    } else if (object.userData.isMainElement) {
+                        renderer.domElement.style.cursor = 'move';
+                    } else {
+                        renderer.domElement.style.cursor = 'default';
+                    }
+                } else {
+                    renderer.domElement.style.cursor = 'default';
+                }
             }
         }
         
         function onMouseUp() {
             dragging = false;
+            isResizing = false;
             selectedObject = null;
+            resizeHandle = null;
+            renderer.domElement.style.cursor = 'default';
+        }
+        
+        function updateHandlePositions(element) {
+            if (element.userData.handles) {
+                element.userData.handles.forEach(handle => {
+                    handle.position.x = element.position.x + (handle.userData.xDir * element.userData.width/2);
+                    handle.position.y = element.position.y + (handle.userData.yDir * element.userData.height/2);
+                });
+            }
         }
         
         // Animation loop
