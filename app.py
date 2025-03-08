@@ -591,4 +591,4 @@ threejs_code = '''
 '''
 
 # Render the Three.js canvas
-components.html(threejs_code, height=650, key=f"threejs_canvas_{len(st.session_state.elements)}") 
+components.html(threejs_code, height=650) 
