@@ -180,8 +180,8 @@ st.markdown("### Canvas")
 # Create the Three.js interactive canvas with state management
 threejs_code = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <div id="canvas-container" style="width: 100%; height: 600px; position: relative; border: 2px dashed #ccc;">
-        <div id="scene-container" style="width: 100%; height: 100%; position: absolute;"></div>
+    <div id="canvas-container" style="width: 100%; height: 600px; position: relative; border: 2px dashed #ccc; overflow: hidden;">
+        <div id="scene-container" style="width: 100%; height: 100%; position: absolute; left: 0; top: 0;"></div>
     </div>
 
     <script>
@@ -191,8 +191,7 @@ threejs_code = '''
             camera: null,
             renderer: null,
             elements: new Map(),
-            initialized: false,
-            background: null
+            initialized: false
         };
 
         // Helper function to convert hex color to THREE.Color
@@ -205,26 +204,6 @@ threejs_code = '''
             } : null;
         }
 
-        // Function to create or update background
-        function updateBackground(color) {
-            const bgColor = hexToRgb(color);
-            
-            if (!window.threeJsState.background) {
-                // Create background plane that's larger than the visible area
-                const bgGeometry = new THREE.PlaneGeometry(2000, 2000);
-                const bgMaterial = new THREE.MeshBasicMaterial({
-                    color: new THREE.Color(bgColor.r, bgColor.g, bgColor.b),
-                    side: THREE.DoubleSide
-                });
-                window.threeJsState.background = new THREE.Mesh(bgGeometry, bgMaterial);
-                window.threeJsState.background.position.z = -10; // Behind everything
-                window.threeJsState.scene.add(window.threeJsState.background);
-            } else {
-                // Update existing background color
-                window.threeJsState.background.material.color.setRGB(bgColor.r, bgColor.g, bgColor.b);
-            }
-        }
-
         // Initialize scene only if not already initialized
         if (!window.threeJsState.initialized) {
             const container = document.getElementById('scene-container');
@@ -233,8 +212,7 @@ threejs_code = '''
             // Initialize Three.js scene
             window.threeJsState.scene = new THREE.Scene();
             
-            // Orthographic camera for 2D view
-            const aspect = containerRect.width / containerRect.height;
+            // Set up camera
             window.threeJsState.camera = new THREE.OrthographicCamera(
                 -containerRect.width / 2,
                 containerRect.width / 2,
@@ -245,20 +223,43 @@ threejs_code = '''
             );
             window.threeJsState.camera.position.z = 100;
             
-            // Renderer setup
+            // Renderer setup with proper size
             window.threeJsState.renderer = new THREE.WebGLRenderer({ 
                 antialias: true,
-                alpha: true 
+                alpha: false // Disable alpha to ensure solid background
             });
-            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height);
+            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
             window.threeJsState.renderer.setPixelRatio(window.devicePixelRatio);
             container.appendChild(window.threeJsState.renderer.domElement);
 
             window.threeJsState.initialized = true;
         }
 
-        // Update or create background
-        updateBackground("''' + st.session_state.background_color + '''");
+        // Update background color
+        const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
+        window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
+        window.threeJsState.renderer.setClearColor(new THREE.Color(bgColor.r, bgColor.g, bgColor.b), 1);
+
+        // Handle window resize
+        function onWindowResize() {
+            const container = document.getElementById('scene-container');
+            const containerRect = container.getBoundingClientRect();
+            
+            // Update camera
+            window.threeJsState.camera.left = -containerRect.width / 2;
+            window.threeJsState.camera.right = containerRect.width / 2;
+            window.threeJsState.camera.top = containerRect.height / 2;
+            window.threeJsState.camera.bottom = -containerRect.height / 2;
+            window.threeJsState.camera.updateProjectionMatrix();
+            
+            // Update renderer size to match container exactly
+            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height, false);
+        }
+        
+        window.addEventListener('resize', onWindowResize);
+
+        // Force initial resize to ensure proper dimensions
+        onWindowResize();
 
         // Function to create or update UI elements
         function updateUIElements(elements) {
@@ -535,22 +536,6 @@ threejs_code = '''
             window.threeJsState.renderer.render(window.threeJsState.scene, window.threeJsState.camera);
         }
         animate();
-
-        // Handle window resize
-        function onWindowResize() {
-            const container = document.getElementById('scene-container');
-            const containerRect = container.getBoundingClientRect();
-            
-            window.threeJsState.camera.left = -containerRect.width / 2;
-            window.threeJsState.camera.right = containerRect.width / 2;
-            window.threeJsState.camera.top = containerRect.height / 2;
-            window.threeJsState.camera.bottom = -containerRect.height / 2;
-            window.threeJsState.camera.updateProjectionMatrix();
-            
-            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height);
-        }
-        
-        window.addEventListener('resize', onWindowResize);
     </script>
 '''
 
