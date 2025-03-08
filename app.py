@@ -495,8 +495,13 @@ threejs_code = '''
                 // Update handle positions
                 if (parentElement.userData.handles) {
                     parentElement.userData.handles.forEach(handle => {
-                        handle.position.x = parentElement.position.x + (handle.userData.xDir * newWidth/2);
-                        handle.position.y = parentElement.position.y + (handle.userData.yDir * newHeight/2);
+                        const xOffset = handle.userData.xDir * (newWidth/2);
+                        const yOffset = handle.userData.yDir * (newHeight/2);
+                        handle.position.set(
+                            parentElement.position.x + xOffset,
+                            parentElement.position.y + yOffset,
+                            1
+                        );
                     });
                 }
                 
@@ -516,8 +521,13 @@ threejs_code = '''
                 // Update handle positions
                 if (selectedObject.userData.handles) {
                     selectedObject.userData.handles.forEach(handle => {
-                        handle.position.x = selectedObject.position.x + (handle.userData.xDir * selectedObject.userData.width/2);
-                        handle.position.y = selectedObject.position.y + (handle.userData.yDir * selectedObject.userData.height/2);
+                        const xOffset = handle.userData.xDir * (selectedObject.userData.width/2);
+                        const yOffset = handle.userData.yDir * (selectedObject.userData.height/2);
+                        handle.position.set(
+                            selectedObject.position.x + xOffset,
+                            selectedObject.position.y + yOffset,
+                            1
+                        );
                     });
                 }
             } else {
