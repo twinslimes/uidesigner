@@ -179,6 +179,9 @@ with st.sidebar:
 # Main canvas area
 st.markdown("### Canvas")
 
+# Add warning message
+st.warning("⚠️ Note: Please add all elements first before adjusting their positions/sizes. Adding new elements will reset the positions of existing elements.")
+
 # Create the Three.js interactive canvas with state management
 threejs_code = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
