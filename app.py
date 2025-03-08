@@ -164,4 +164,62 @@ canvas_html = f"""
 </div>
 """
 
-components.html(canvas_html, height=st.session_state.canvas_height + 40) 
+components.html(canvas_html, height=st.session_state.canvas_height + 40)
+
+st.title("Three.js in Streamlit Demo")
+
+# HTML component with Three.js scene
+components.html('''
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <div id="scene-container" style="height: 400px;"></div>
+    
+    <script>
+        // Set up scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        // Create renderer
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, 400);
+        document.getElementById('scene-container').appendChild(renderer.domElement);
+        
+        // Create a cube
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+        const cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+        
+        // Add lights
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        scene.add(light);
+        
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        
+        // Position camera
+        camera.position.z = 5;
+        
+        // Animation function
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            cube.rotation.x += 0.01;
+            cube.rotation.y += 0.01;
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, 400);
+        }
+        
+        animate();
+    </script>
+''', height=450) 
