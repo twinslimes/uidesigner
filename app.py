@@ -191,7 +191,8 @@ threejs_code = '''
             camera: null,
             renderer: null,
             elements: new Map(),
-            initialized: false
+            initialized: false,
+            background: null
         };
 
         // Helper function to convert hex color to THREE.Color
@@ -204,6 +205,26 @@ threejs_code = '''
             } : null;
         }
 
+        // Function to create or update background
+        function updateBackground(color) {
+            const bgColor = hexToRgb(color);
+            
+            if (!window.threeJsState.background) {
+                // Create background plane that's larger than the visible area
+                const bgGeometry = new THREE.PlaneGeometry(2000, 2000);
+                const bgMaterial = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color(bgColor.r, bgColor.g, bgColor.b),
+                    side: THREE.DoubleSide
+                });
+                window.threeJsState.background = new THREE.Mesh(bgGeometry, bgMaterial);
+                window.threeJsState.background.position.z = -10; // Behind everything
+                window.threeJsState.scene.add(window.threeJsState.background);
+            } else {
+                // Update existing background color
+                window.threeJsState.background.material.color.setRGB(bgColor.r, bgColor.g, bgColor.b);
+            }
+        }
+
         // Initialize scene only if not already initialized
         if (!window.threeJsState.initialized) {
             const container = document.getElementById('scene-container');
@@ -211,8 +232,6 @@ threejs_code = '''
             
             // Initialize Three.js scene
             window.threeJsState.scene = new THREE.Scene();
-            const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
-            window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
             
             // Orthographic camera for 2D view
             const aspect = containerRect.width / containerRect.height;
@@ -236,11 +255,10 @@ threejs_code = '''
             container.appendChild(window.threeJsState.renderer.domElement);
 
             window.threeJsState.initialized = true;
-        } else {
-            // Update background color if scene exists
-            const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
-            window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
         }
+
+        // Update or create background
+        updateBackground("''' + st.session_state.background_color + '''");
 
         // Function to create or update UI elements
         function updateUIElements(elements) {
