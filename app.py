@@ -16,6 +16,34 @@ if 'elements' not in st.session_state:
     st.session_state.canvas_height = 600
     st.session_state.canvas_width = 1000
 
+# Predefined color schemes
+COLOR_SCHEMES = {
+    "Modern": {
+        "Window": "#ffffff",
+        "Sidebar": "#f8f9fa",
+        "Button": "#007bff",
+        "Text Input": "#e9ecef",
+        "Dropdown": "#ffffff",
+        "Select Box": "#ffffff"
+    },
+    "Dark": {
+        "Window": "#2c3e50",
+        "Sidebar": "#34495e",
+        "Button": "#3498db",
+        "Text Input": "#465c6e",
+        "Dropdown": "#2c3e50",
+        "Select Box": "#2c3e50"
+    },
+    "Pastel": {
+        "Window": "#f7e9e3",
+        "Sidebar": "#e3f7f5",
+        "Button": "#c9e4de",
+        "Text Input": "#f7d9c4",
+        "Dropdown": "#f2e9e4",
+        "Select Box": "#e9f2f4"
+    }
+}
+
 # Custom CSS to make the app full-screen and remove padding
 st.markdown("""
     <style>
@@ -57,6 +85,20 @@ st.markdown("""
 with st.sidebar:
     st.title("🎨 UI Elements")
     
+    # Color scheme selection
+    selected_scheme = st.selectbox(
+        "Color Scheme",
+        ["Modern", "Dark", "Pastel", "Custom"]
+    )
+    
+    # Custom color picker if "Custom" is selected
+    if selected_scheme == "Custom":
+        element_color = st.color_picker("Element Color", "#ffffff")
+        handle_color = st.color_picker("Handle Color", "#4a90e2")
+    else:
+        element_color = None
+        handle_color = "#4a90e2"
+    
     # Tool selection
     selected_tool = st.radio(
         "Select Tool",
@@ -91,7 +133,8 @@ with st.sidebar:
                 "width": width,
                 "height": height,
                 "text": text if 'text' in locals() else "",
-                "options": options.split('\n') if 'options' in locals() else []
+                "options": options.split('\n') if 'options' in locals() else [],
+                "color": element_color if selected_scheme == "Custom" else COLOR_SCHEMES[selected_scheme][selected_tool]
             }
             st.session_state.elements.append(new_element)
             st.rerun()
@@ -152,12 +195,23 @@ threejs_code = '''
         let selectedObject = null;
         let offset = new THREE.Vector2();
         
+        // Helper function to convert hex color to THREE.Color
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16) / 255,
+                g: parseInt(result[2], 16) / 255,
+                b: parseInt(result[3], 16) / 255
+            } : null;
+        }
+        
         // Create UI elements from session state
         function createUIElements(elements) {
             elements.forEach(element => {
                 const geometry = new THREE.PlaneGeometry(element.width, element.height);
+                const color = hexToRgb(element.color);
                 const material = new THREE.MeshBasicMaterial({ 
-                    color: 0xffffff,
+                    color: new THREE.Color(color.r, color.g, color.b),
                     side: THREE.DoubleSide
                 });
                 const mesh = new THREE.Mesh(geometry, material);
@@ -172,30 +226,31 @@ threejs_code = '''
                 scene.add(mesh);
 
                 // Add resize handles
-                const handleSize = 10;
+                const handleSize = 8;
                 const handles = [
-                    { x: -1, y: -1, cursor: 'nw-resize', type: 'corner' },  // Top-left
-                    { x: 1, y: -1, cursor: 'ne-resize', type: 'corner' },   // Top-right
-                    { x: -1, y: 1, cursor: 'sw-resize', type: 'corner' },   // Bottom-left
-                    { x: 1, y: 1, cursor: 'se-resize', type: 'corner' },    // Bottom-right
-                    { x: 0, y: -1, cursor: 'n-resize', type: 'edge' },      // Top
-                    { x: 0, y: 1, cursor: 's-resize', type: 'edge' },       // Bottom
-                    { x: -1, y: 0, cursor: 'w-resize', type: 'edge' },      // Left
-                    { x: 1, y: 0, cursor: 'e-resize', type: 'edge' }        // Right
+                    { x: -1, y: -1, cursor: 'nw-resize', type: 'corner' },
+                    { x: 1, y: -1, cursor: 'ne-resize', type: 'corner' },
+                    { x: -1, y: 1, cursor: 'sw-resize', type: 'corner' },
+                    { x: 1, y: 1, cursor: 'se-resize', type: 'corner' },
+                    { x: 0, y: -1, cursor: 'n-resize', type: 'edge' },
+                    { x: 0, y: 1, cursor: 's-resize', type: 'edge' },
+                    { x: -1, y: 0, cursor: 'w-resize', type: 'edge' },
+                    { x: 1, y: 0, cursor: 'e-resize', type: 'edge' }
                 ];
 
                 handles.forEach(handleData => {
                     const handleGeometry = new THREE.PlaneGeometry(handleSize, handleSize);
                     const handleMaterial = new THREE.MeshBasicMaterial({
                         color: 0x4a90e2,
-                        side: THREE.DoubleSide
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                        opacity: 0.8
                     });
                     const handle = new THREE.Mesh(handleGeometry, handleMaterial);
                     
-                    // Position handle relative to main element
                     handle.position.x = mesh.position.x + (handleData.x * element.width/2);
                     handle.position.y = mesh.position.y + (handleData.y * element.height/2);
-                    handle.position.z = 1;  // Slightly in front
+                    handle.position.z = 1;
                     
                     handle.userData = {
                         isHandle: true,
