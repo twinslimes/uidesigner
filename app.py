@@ -94,12 +94,12 @@ with st.sidebar:
                 "options": options.split('\n') if 'options' in locals() else []
             }
             st.session_state.elements.append(new_element)
-            st.experimental_rerun()
+            st.rerun()
 
     # Clear canvas button
     if st.button("Clear Canvas"):
         st.session_state.elements = []
-        st.experimental_rerun()
+        st.rerun()
 
     # Export button
     if st.button("Export Design"):
@@ -119,107 +119,137 @@ with st.sidebar:
 # Main canvas area
 st.markdown("### Canvas")
 
-# Generate HTML for each element
-elements_html = ""
-for element in st.session_state.elements:
-    style = f"""
-        left: {element['x']}px;
-        top: {element['y']}px;
-        width: {element['width']}px;
-        height: {element['height']}px;
-    """
-    
-    content = ""
-    if element['type'] == 'Button':
-        content = f'<button style="width: 100%; height: 100%; cursor: pointer">{element["text"]}</button>'
-    elif element['type'] == 'Text Input':
-        content = f'<input type="text" placeholder="{element["text"]}" style="width: 100%">'
-    elif element['type'] == 'Dropdown':
-        options = ''.join([f'<option>{opt}</option>' for opt in element['options']])
-        content = f'<select style="width: 100%">{options}</select>'
-    elif element['type'] == 'Window':
-        content = f'''
-            <div style="width: 100%; height: 100%; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <div style="padding: 8px; background: #f8f9fa; border-bottom: 1px solid #dee2e6; border-radius: 8px 8px 0 0;">
-                    Window Title
-                </div>
-                <div style="padding: 16px;">Window Content</div>
-            </div>
-        '''
-    elif element['type'] == 'Sidebar':
-        content = f'''
-            <div style="width: 100%; height: 100%; background: #f8f9fa; border-right: 1px solid #dee2e6; padding: 16px;">
-                Sidebar Content
-            </div>
-        '''
-    else:
-        content = f'<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">{element["type"]}</div>'
-    
-    elements_html += f'<div class="ui-element" style="{style}">{content}</div>'
-
-# Render canvas with elements
-canvas_html = f"""
-<div class="canvas" style="width: {st.session_state.canvas_width}px; height: {st.session_state.canvas_height}px">
-    {elements_html}
-</div>
-"""
-
-components.html(canvas_html, height=st.session_state.canvas_height + 40)
-
-st.title("Three.js in Streamlit Demo")
-
-# HTML component with Three.js scene
-components.html('''
+# Create the Three.js interactive canvas
+threejs_code = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    
-    <div id="scene-container" style="height: 400px;"></div>
-    
+    <div id="canvas-container" style="width: 100%; height: 600px; position: relative;">
+        <div id="scene-container" style="width: 100%; height: 100%;"></div>
+    </div>
+
     <script>
-        // Set up scene
+        // Initialize Three.js scene
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        scene.background = new THREE.Color(0xf5f5f5);
         
-        // Create renderer
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth, 400);
+        // Orthographic camera for 2D view
+        const width = window.innerWidth;
+        const height = 600;
+        const camera = new THREE.OrthographicCamera(
+            width / -2, width / 2,
+            height / 2, height / -2,
+            1, 1000
+        );
+        camera.position.z = 100;
+        
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
         document.getElementById('scene-container').appendChild(renderer.domElement);
         
-        // Create a cube
-        const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
-        const cube = new THREE.Mesh(geometry, material);
-        scene.add(cube);
+        // Track mouse position and dragging state
+        let mouse = new THREE.Vector2();
+        let dragging = false;
+        let selectedObject = null;
+        let offset = new THREE.Vector2();
         
-        // Add lights
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(1, 1, 1);
-        scene.add(light);
+        // Create UI elements from session state
+        function createUIElements(elements) {
+            elements.forEach(element => {
+                const geometry = new THREE.PlaneGeometry(element.width, element.height);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0xffffff,
+                    side: THREE.DoubleSide
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // Position relative to canvas
+                mesh.position.x = element.x - width/2 + element.width/2;
+                mesh.position.y = -element.y + height/2 - element.height/2;
+                mesh.position.z = 0;
+                
+                mesh.userData = element;
+                scene.add(mesh);
+            });
+        }
         
-        const ambientLight = new THREE.AmbientLight(0x404040);
-        scene.add(ambientLight);
+        // Mouse event handlers
+        renderer.domElement.addEventListener('mousedown', onMouseDown);
+        renderer.domElement.addEventListener('mousemove', onMouseMove);
+        renderer.domElement.addEventListener('mouseup', onMouseUp);
         
-        // Position camera
-        camera.position.z = 5;
+        function onMouseDown(event) {
+            event.preventDefault();
+            
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            const intersects = raycaster.intersectObjects(scene.children);
+            
+            if (intersects.length > 0) {
+                dragging = true;
+                selectedObject = intersects[0].object;
+                
+                const intersectPoint = intersects[0].point;
+                offset.x = selectedObject.position.x - intersectPoint.x;
+                offset.y = selectedObject.position.y - intersectPoint.y;
+            }
+        }
         
-        // Animation function
+        function onMouseMove(event) {
+            if (dragging && selectedObject) {
+                const rect = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, camera);
+                
+                const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                const intersectPoint = new THREE.Vector3();
+                raycaster.ray.intersectPlane(planeZ, intersectPoint);
+                
+                selectedObject.position.x = intersectPoint.x + offset.x;
+                selectedObject.position.y = intersectPoint.y + offset.y;
+                
+                // Update element position in userData
+                selectedObject.userData.x = selectedObject.position.x + width/2 - selectedObject.userData.width/2;
+                selectedObject.userData.y = -selectedObject.position.y + height/2 - selectedObject.userData.height/2;
+            }
+        }
+        
+        function onMouseUp() {
+            dragging = false;
+            selectedObject = null;
+        }
+        
+        // Animation loop
         function animate() {
             requestAnimationFrame(animate);
-            
-            cube.rotation.x += 0.01;
-            cube.rotation.y += 0.01;
-            
             renderer.render(scene, camera);
         }
         
         // Handle window resize
-        window.addEventListener('resize', onWindowResize, false);
-        
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
+        window.addEventListener('resize', () => {
+            const newWidth = window.innerWidth;
+            
+            camera.left = newWidth / -2;
+            camera.right = newWidth / 2;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, 400);
-        }
+            
+            renderer.setSize(newWidth, height);
+        });
         
+        // Start animation
         animate();
+        
+        // Create initial elements
+        createUIElements(''' + json.dumps(st.session_state.elements) + ''');
     </script>
-''', height=450) 
+'''
+
+# Render the Three.js canvas
+components.html(threejs_code, height=650) 
