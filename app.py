@@ -180,8 +180,8 @@ st.markdown("### Canvas")
 # Create the Three.js interactive canvas with state management
 threejs_code = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <div id="canvas-container" style="width: 100%; height: 600px; position: relative;">
-        <div id="scene-container" style="width: 100%; height: 100%;"></div>
+    <div id="canvas-container" style="width: 100%; height: 600px; position: relative; border: 2px dashed #ccc;">
+        <div id="scene-container" style="width: 100%; height: 100%; position: absolute;"></div>
     </div>
 
     <script>
@@ -206,25 +206,34 @@ threejs_code = '''
 
         // Initialize scene only if not already initialized
         if (!window.threeJsState.initialized) {
+            const container = document.getElementById('scene-container');
+            const containerRect = container.getBoundingClientRect();
+            
             // Initialize Three.js scene
             window.threeJsState.scene = new THREE.Scene();
             const bgColor = hexToRgb("''' + st.session_state.background_color + '''");
             window.threeJsState.scene.background = new THREE.Color(bgColor.r, bgColor.g, bgColor.b);
             
             // Orthographic camera for 2D view
-            const width = window.innerWidth;
-            const height = 600;
+            const aspect = containerRect.width / containerRect.height;
             window.threeJsState.camera = new THREE.OrthographicCamera(
-                width / -2, width / 2,
-                height / 2, height / -2,
-                1, 1000
+                -containerRect.width / 2,
+                containerRect.width / 2,
+                containerRect.height / 2,
+                -containerRect.height / 2,
+                1,
+                1000
             );
             window.threeJsState.camera.position.z = 100;
             
             // Renderer setup
-            window.threeJsState.renderer = new THREE.WebGLRenderer({ antialias: true });
-            window.threeJsState.renderer.setSize(width, height);
-            document.getElementById('scene-container').appendChild(window.threeJsState.renderer.domElement);
+            window.threeJsState.renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true 
+            });
+            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height);
+            window.threeJsState.renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(window.threeJsState.renderer.domElement);
 
             window.threeJsState.initialized = true;
         } else {
@@ -424,34 +433,45 @@ threejs_code = '''
                     }
                 }
                 
-                // Update element geometry
+                // Update element geometry and position
                 parentElement.geometry.dispose();
                 parentElement.geometry = new THREE.PlaneGeometry(newWidth, newHeight);
                 parentElement.position.set(newX, newY, 0);
                 
-                // Update userData
+                // Update element userData
                 parentElement.userData.width = newWidth;
                 parentElement.userData.height = newHeight;
-                parentElement.userData.x = newX + width/2 - newWidth/2;
-                parentElement.userData.y = -newY + height/2 - newHeight/2;
+                parentElement.userData.x = newX + containerRect.width/2 - newWidth/2;
+                parentElement.userData.y = -newY + containerRect.height/2 - newHeight/2;
                 
                 // Update handle positions
-                updateHandlePositions(parentElement);
+                if (parentElement.userData.handles) {
+                    parentElement.userData.handles.forEach(handle => {
+                        handle.position.x = parentElement.position.x + (handle.userData.xDir * newWidth/2);
+                        handle.position.y = parentElement.position.y + (handle.userData.yDir * newHeight/2);
+                    });
+                }
                 
             } else if (dragging && selectedObject) {
                 const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
                 const intersectPoint = new THREE.Vector3();
                 raycaster.ray.intersectPlane(planeZ, intersectPoint);
                 
+                // Update main element position
                 selectedObject.position.x = intersectPoint.x + offset.x;
                 selectedObject.position.y = intersectPoint.y + offset.y;
                 
-                // Update element position in userData
-                selectedObject.userData.x = selectedObject.position.x + width/2 - selectedObject.userData.width/2;
-                selectedObject.userData.y = -selectedObject.position.y + height/2 - selectedObject.userData.height/2;
+                // Update element userData
+                selectedObject.userData.x = selectedObject.position.x + containerRect.width/2 - selectedObject.userData.width/2;
+                selectedObject.userData.y = -selectedObject.position.y + containerRect.height/2 - selectedObject.userData.height/2;
                 
                 // Update handle positions
-                updateHandlePositions(selectedObject);
+                if (selectedObject.userData.handles) {
+                    selectedObject.userData.handles.forEach(handle => {
+                        handle.position.x = selectedObject.position.x + (handle.userData.xDir * selectedObject.userData.width/2);
+                        handle.position.y = selectedObject.position.y + (handle.userData.yDir * selectedObject.userData.height/2);
+                    });
+                }
             } else {
                 // Hover effect
                 const intersects = raycaster.intersectObjects(window.threeJsState.scene.children);
@@ -478,6 +498,7 @@ threejs_code = '''
             window.threeJsState.renderer.domElement.style.cursor = 'default';
         }
         
+        // Helper function to update handle positions
         function updateHandlePositions(element) {
             if (element.userData.handles) {
                 element.userData.handles.forEach(handle => {
@@ -498,15 +519,20 @@ threejs_code = '''
         animate();
 
         // Handle window resize
-        window.addEventListener('resize', () => {
-            const newWidth = window.innerWidth;
+        function onWindowResize() {
+            const container = document.getElementById('scene-container');
+            const containerRect = container.getBoundingClientRect();
             
-            window.threeJsState.camera.left = newWidth / -2;
-            window.threeJsState.camera.right = newWidth / 2;
+            window.threeJsState.camera.left = -containerRect.width / 2;
+            window.threeJsState.camera.right = containerRect.width / 2;
+            window.threeJsState.camera.top = containerRect.height / 2;
+            window.threeJsState.camera.bottom = -containerRect.height / 2;
             window.threeJsState.camera.updateProjectionMatrix();
             
-            window.threeJsState.renderer.setSize(newWidth, 600);
-        });
+            window.threeJsState.renderer.setSize(containerRect.width, containerRect.height);
+        }
+        
+        window.addEventListener('resize', onWindowResize);
     </script>
 '''
 
