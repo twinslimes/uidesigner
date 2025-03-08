@@ -17,6 +17,7 @@ if 'elements' not in st.session_state:
     st.session_state.canvas_width = 1000
     st.session_state.background_color = "#f5f5f5"  # Default background color
     st.session_state.last_element_id = 0  # Add counter for element IDs
+    st.session_state.pending_elements = []  # Add pending elements list
 
 # Predefined color schemes
 COLOR_SCHEMES = {
@@ -153,7 +154,7 @@ with st.sidebar:
                 "options": options.split('\n') if 'options' in locals() else [],
                 "color": element_color if selected_scheme == "Custom" else COLOR_SCHEMES[selected_scheme][selected_tool]
             }
-            st.session_state.elements.append(new_element)
+            st.session_state.pending_elements.append(new_element)
 
     # Clear canvas button
     if st.button("Clear Canvas"):
@@ -182,6 +183,12 @@ st.markdown("### Canvas")
 def handle_threejs_update(value):
     if value and 'elements' in value:
         st.session_state.elements = value['elements']
+    elif value and 'action' in value:
+        if value['action'] == 'ready':
+            # If component is ready and we have pending elements, add them
+            if st.session_state.pending_elements:
+                st.session_state.elements.extend(st.session_state.pending_elements)
+                st.session_state.pending_elements = []
 
 # Create the Three.js interactive canvas with state management
 threejs_code = '''
@@ -410,6 +417,13 @@ threejs_code = '''
             container.appendChild(window.threeJsState.renderer.domElement);
 
             window.threeJsState.initialized = true;
+
+            // Signal that the component is ready
+            if (window.Streamlit) {
+                window.Streamlit.setComponentValue({
+                    action: 'ready'
+                });
+            }
         }
 
         // Update background color
@@ -598,4 +612,6 @@ threejs_code = '''
 '''
 
 # Render the Three.js canvas with state handling
-threejs_state = components.html(threejs_code, height=650) 
+threejs_state = components.html(threejs_code, height=650, key="threejs_canvas")
+if threejs_state:
+    handle_threejs_update(threejs_state) 
